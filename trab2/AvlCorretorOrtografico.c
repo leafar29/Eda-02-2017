@@ -8,8 +8,8 @@
 #include <sys/resource.h>
 #include <sys/time.h>
 #include <stdbool.h>
-#include<stdlib.h>
-#include<string.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* Tamanho maximo de uma palavra do dicionario */
 #define TAM_MAX 45
@@ -24,105 +24,144 @@
 #define ARQTEXTO_ERROLEITURA    4
 #define ERRO_DICIO_NAOCARREGADO 5
 
-/* Structs */
-typedef struct letra {
-    int valor;
-    struct letra* prox[27];
-}Letra;
 
-/*Variáveis Globais */
-Letra* L[26];
+/*Structs */
+typedef struct palavra {
+    char valor[TAM_MAX];
+    int h;
+    struct palavra* esq;
+    struct palavra* dir;
+}Palavra;
+
+/* variaveis globais*/
+Palavra* L;
 int num_palavras = 0;
 
+int altura(Palavra* a){
+    if (a == NULL)
+        return 0;
+    return a->h;
+}
 
+int maior(int a, int b){
+    return (a > b)? a : b;
+}
 
 /*Inicializa No da árvore */
-Letra* inicia_No(Letra* a){
-    int i;
-    Letra* novo = (Letra*)malloc(sizeof(Letra));
+Palavra* novo_No(char* valor){
+    Palavra* novo = (Palavra*)malloc(sizeof(Palavra));
 
-    novo->valor = 0;
-    for(i = 0; i < 27; i++){
-        novo->prox[i] = NULL;
+    strcpy(novo->valor,valor);
+    novo->h = 1;
+    novo->esq = NULL;
+    novo->dir = NULL;
+
+    return novo;
+}
+
+Palavra* rotacao_Direita(Palavra* y){
+    Palavra* x = y->esq;
+    Palavra* T2 = x->dir;
+ 
+    // Perform rotation
+    x->dir = y;
+    y->esq = T2;
+ 
+    // Update heights
+    y->h = maior(altura(y->esq), altura(y->dir))+1;
+    x->h = maior(altura(x->esq), altura(x->dir))+1;
+ 
+    // Return new root
+    return x;
+}
+Palavra* rotacao_Esquerda(Palavra* x){
+    Palavra *y = x->dir;
+    Palavra *T2 = y->esq;
+ 
+    // Perform rotation
+    y->esq = x;
+    x->dir = T2;
+ 
+    //  Update heights
+    x->h = maior(altura(x->esq), altura(x->dir))+1;
+    y->h = maior(altura(y->esq), altura(y->dir))+1;
+ 
+    // Return new root
+    return y;
+}
+int getBalance(Palavra* N){
+    if (N == NULL)
+        return 0;
+    return altura(N->esq) - altura(N->dir);
+}
+
+Palavra* insere(Palavra* a, char *palavra){
+    /* 1.  Perform the normal BST insertion */
+    if (a == NULL)
+        return(novo_No(palavra));
+ 
+    if (strcmp(palavra , a->valor) < 0)
+        a->esq  = insere(a->esq, palavra);
+    else if (strcmp(palavra , a->valor)> 0)
+        a->dir = insere(a->dir, palavra);
+    else // Equal keys are not allowed in BST
+        return a;
+ 
+    /* 2. Update height of this ancestor a */
+    a->h = 1 + maior(altura(a->esq),altura(a->dir));
+ 
+    /* 3. Get the balance factor of this ancestor
+          a to check whether this a became
+          unbalanced */
+    int balance = getBalance(a);
+ 
+    // If this a becomes unbalanced, then
+    // there are 4 cases
+ 
+    // esq esq Case
+    if (balance > 1 && strcmp(palavra , a->esq->valor) < 0)
+        return rotacao_Direita(a);
+ 
+    // dir dir Case
+    if (balance < -1 && strcmp(palavra , a->dir->valor) > 0)
+        return rotacao_Esquerda(a);
+ 
+    // esq dir Case
+    if (balance > 1 && strcmp(palavra , a->esq->valor) > 0){
+        a->esq =  rotacao_Esquerda(a->esq);
+        return rotacao_Direita(a);
     }
-    a = novo;
-
+ 
+    // dir esq Case
+    if (balance < -1 && strcmp(palavra , a->dir->valor) < 0){
+        a->dir = rotacao_Direita(a->dir);
+        return rotacao_Esquerda(a);
+    }
+ 
+    /* return the (unchanged) a pointer */
     return a;
 }
-/*Inicia Arvore */
-void inicia_Arvore(){
-    int i;
-    for(i = 0; i < 26; i++){
-        L[i] = inicia_No(L[i]);
-    }
+bool compara_Palavra(Palavra* a, const char* palavra){
+    if(a == NULL)
+        return false;
+    else if(strcmp(a->valor, palavra) == 0)
+        return true;
+    else if(strcmp(a->valor, palavra) < 0)
+        compara_Palavra(a->esq, palavra);
+    else if(strcmp(a->valor, palavra) > 0)
+        compara_Palavra(a->dir, palavra);
+    else
+        return false;
 }
-
-/*Salva o caminho da palavra na árvore */
-void salva_Palavra(char* palavra){
-    int i=0;
-    char C;
-    Letra* p;
-
-    for(i = 0; i < strlen(palavra); i++){
-        C = palavra[i];
-        if(i == 0){
-            if(L[palavra[i]] == NULL)
-                L[palavra[i]] = inicia_No(L[palavra[i]]);
-            p = L[palavra[i] - 97];
-            p->valor = 1;
-        }else{
-            if(C == '\''){ 
-                if(p->prox[26] == NULL)
-                    p->prox[26] = inicia_No(p->prox[26]);
-                p = p->prox[26];
-                p->valor = 1;
-            }else{
-                
-                if(p->prox[C - 97] == NULL)
-                    p->prox[C - 97] = inicia_No(p->prox[C - 97]);
-                p = p->prox[C - 97];
-                p->valor = 1;
-            }
-        }
-        
-    }
-}/*fim-salva_Palavra*/
-
 /* Retorna true se a palavra estah no dicionario. Do contrario, retorna false */
 bool conferePalavra(const char *palavra) {
-    Letra* p;
-    int i;
-    char C;
-    
-    for(i = 0; i < strlen(palavra); i++){
-        if(palavra[i] != '\'')
-            C = tolower(palavra[i]);
-        else
-            C = palavra[i];
-        
-        if(i == 0){
-            if(L[C - 97] == NULL || L[C - 97]->valor == 0)
-                return false;
-            p = L[C - 97];
-        }else{
-            if(C == '\''){ /* checa se é apóstrofo*/
-                if(p->prox[26] == NULL || p->prox[26]->valor == 0)
-                    return false;
-                p = p->prox[26];
-            }else{
-                if(p->prox[C - 97] == NULL || p->prox[C - 97]->valor == 0)
-                    return false;
-                p = p->prox[C - 97];
-            }
-        }
-    }
-    
-    return true;
+
+    return compara_Palavra(L,palavra);
+
 } /* fim-conferePalavra */
 
 /* Carrega dicionario na memoria. Retorna true se sucesso; senao retorna false. */
 bool carregaDicionario(const char *dicionario) {
-
     FILE* f = fopen(dicionario,"r");
     int i;
     char palavra[TAM_MAX];
@@ -135,7 +174,7 @@ bool carregaDicionario(const char *dicionario) {
                 return false;
             else{
                 num_palavras++;
-                salva_Palavra(palavra);
+                L = insere(L,palavra);
             }
         }
     }
@@ -145,25 +184,18 @@ bool carregaDicionario(const char *dicionario) {
 
 /* Retorna qtde palavras do dicionario, se carregado; senao carregado retorna zero */
 unsigned int contaPalavrasDic(void) {
+
+    /* construa essa funcao */
+
     return num_palavras;
 } /* fim-contaPalavrasDic */
 
-Letra* destroi_Arvore(Letra* a){
-    int i;
-    if(a != NULL){
-        for(i = 0; i < 27; i++)
-            destroi_Arvore(a->prox[i]);
-        free(a);
-    }
-    return NULL;
-}
+
 /* Descarrega dicionario da memoria. Retorna true se ok e false se algo deu errado */
 bool descarregaDicionario(void) {
-    int i;
-    for(i = 0; i < 26; i++){
-        L[i] = destroi_Arvore(L[i]);
-    }
-    
+
+    /* construa essa funcao */
+
     return true;
 } /* fim-descarregaDicionario */
 
@@ -192,7 +224,6 @@ int main(int argc, char *argv[]) {
     char *arqTexto;
     FILE *fd;
 
-    inicia_Arvore();
     /* Confere se o numero de argumentos de chamada estah correto */
     if (argc != 2 && argc != 3) {
         printf("Uso: %s [nomeArquivoDicionario] nomeArquivoTexto\n", argv[0]);
