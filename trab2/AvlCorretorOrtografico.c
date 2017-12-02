@@ -63,30 +63,28 @@ Palavra* rotacao_Direita(Palavra* y){
     Palavra* x = y->esq;
     Palavra* T2 = x->dir;
 
-    // Perform rotation
+    /*Faz a rotação */
     x->dir = y;
     y->esq = T2;
 
-    // Update heights
+    /*Atualiza variaveis de altura */
     y->h = maior(altura(y->esq), altura(y->dir))+1;
     x->h = maior(altura(x->esq), altura(x->dir))+1;
 
-    // Return new root
     return x;
 }
 Palavra* rotacao_Esquerda(Palavra* x){
     Palavra *y = x->dir;
     Palavra *T2 = y->esq;
 
-    // Perform rotation
+    /*Faz a rotação */
     y->esq = x;
     x->dir = T2;
 
-    //  Update heights
+    /*Atualiza variáveis de altura */
     x->h = maior(altura(x->esq), altura(x->dir))+1;
     y->h = maior(altura(y->esq), altura(y->dir))+1;
 
-    // Return new root
     return y;
 }
 int getBalance(Palavra* N){
@@ -96,49 +94,37 @@ int getBalance(Palavra* N){
 }
 
 Palavra* insere(Palavra* a, char *palavra){
-    /* 1.  Perform the normal BST insertion */
     if (a == NULL)
         return(novo_No(palavra));
-
     if (strcmp(palavra , a->valor) < 0)
         a->esq  = insere(a->esq, palavra);
     else if (strcmp(palavra , a->valor)> 0)
         a->dir = insere(a->dir, palavra);
-    else // Equal keys are not allowed in BST
+    else /* caso as palavras sejam iguais */
         return a;
 
-    /* 2. Update height of this ancestor a */
+    /*Atualiza a altura */
     a->h = 1 + maior(altura(a->esq),altura(a->dir));
 
-    /* 3. Get the balance factor of this ancestor
-          a to check whether this a became
-          unbalanced */
+    /*Verificação de balanceamento */
     int balance = getBalance(a);
 
-    // If this a becomes unbalanced, then
-    // there are 4 cases
-
-    // esq esq Case
     if (balance > 1 && strcmp(palavra , a->esq->valor) < 0)
         return rotacao_Direita(a);
 
-    // dir dir Case
     if (balance < -1 && strcmp(palavra , a->dir->valor) > 0)
         return rotacao_Esquerda(a);
 
-    // esq dir Case
     if (balance > 1 && strcmp(palavra , a->esq->valor) > 0){
         a->esq =  rotacao_Esquerda(a->esq);
         return rotacao_Direita(a);
     }
 
-    // dir esq Case
     if (balance < -1 && strcmp(palavra , a->dir->valor) < 0){
         a->dir = rotacao_Direita(a->dir);
         return rotacao_Esquerda(a);
     }
 
-    /* return the (unchanged) a pointer */
     return a;
 }
 bool compara_Palavra(Palavra* a, const char* palavra){
