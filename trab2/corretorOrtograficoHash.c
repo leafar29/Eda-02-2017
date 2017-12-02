@@ -25,35 +25,44 @@
 #define ERRO_DICIO_NAOCARREGADO 5
 
 
-bool *TabHash; //ponteiro global para a tabela hash
-unsigned int tam_hash = 0; //variavel global guardar o tamanho sa tabela
+bool *TabHash; //ponteiro para a tabela hash
+unsigned int tam_hash = 0; //variavel que guarda o tamanho da tabela
+unsigned int num_palavra = 0; //variavel que guarda o numero de palavras
+int colisao = 0;// variavel que guarda o numero de colisoes
 
-unsigned int DEKHash(const char* str, unsigned int len) {
-  unsigned int hash = len;
-  unsigned int i = 0;
+unsigned int FNVHash(const char* str, unsigned int len) {
+  const unsigned int fnv_prime = 0x811C9DC5;
+  unsigned int hash= 0;
+  unsigned int i= 0;
   for(i = 0; i < len; str++, i++) {
-    hash = ((hash << 5) ^ (hash >> 27)) ^ (*str);
+    hash *= fnv_prime;
+    hash ^= (*str);
   }
-  return hash %550000;
-} /* End Of DEK Hash Function */
+  return hash%1000000000;/*Divisao de resto por 1 bilhão, maior numero que conseguimos sem que o programa dê erro
+                                                                            quanto maior este num menos colisões aparecerão*/
+} /* End Of FNVHash Function */
+
+
 
 /* Retorna true se a palavra estah no dicionario. Do contrario, retorna false */
 bool conferePalavra(const char *palavra) {
-	char novaPalavra[TAM_MAX];
-	unsigned int hash;
-	for(unsigned int i = 0; i <= strlen(palavra); i++){
-		if(isalpha(palavra[i])){ //confere se o caracter na posição i é alfabético
-			novaPalavra[i] = tolower(palavra[i]); //copia a palavra para novaPalavra com todas as letras minúsculas
+	char Palavra[TAM_MAX];
+	unsigned int hash, i;
+	for(i = 0; i <= strlen(palavra); i++){
+		if(palavra[i] != '\''){
+			Palavra[i] = tolower(palavra[i]); //coloca caracter a caracter em caixa baixa (ctype.h)
 		}
 		else
-			novaPalavra[i] = palavra[i];
+			Palavra[i] = palavra[i];
 	}
-	hash = DEKHash(novaPalavra, strlen(novaPalavra)); //garante que o hash vai estar entre 0 e 399999
 
-  if(TabHash[hash] == 1){
+  hash = FNVHash(Palavra, strlen(Palavra)); //define o codigo hash da palavra a ser comparada
+
+  if(TabHash[hash] == 1){ // Se o codigo hash é uma posiçao do vetor ocupada com true, a palavra é válida
 		return true;
 	}
-	return false;
+
+  return false; // Se o codigo hash é uma posiçao do vetor que armazena false, a palavra não está no dicionario
 } /* fim-conferePalavra */
 
 /* Carrega dicionario na memoria. Retorna true se sucesso; senao retorna false. */
@@ -62,38 +71,55 @@ bool carregaDicionario(const char *dicionario) {
   char palavra[TAM_MAX];
 	FILE* arq = fopen(dicionario, "r");
 
-  if(arq == NULL) //Se o arquivo tiver vazio, retorna false
+  if(arq == NULL) //Se o arquivo estiver vazio, retorna false
 		return false;
 
 	while(!feof(arq)){ //Enquanto não chega ao final do arquivo
     fscanf(arq, "%s", palavra);
-  	hashPalavra = DEKHash(palavra, strlen(palavra));
+  	hashPalavra = FNVHash(palavra, strlen(palavra)); //Define um hash para cada palavra lida
 
+    /*Compara o hash da ultima palavra lida com o maior hash da lista (+100), se o novo hash é maior, ele realoca o espaço da
+    tabela, para que a posição do novo hash seja válida*/
 		if(hashPalavra > tam_hash){
 			TabHash = realloc(TabHash, (hashPalavra+1)*sizeof(bool));
-			for(i = tam_hash+1; i < hashPalavra+1; i++)
-				TabHash[i] = 0;
-			tam_hash = hashPalavra + 1;
+      tam_hash = hashPalavra + 100;
 		}
-		TabHash[hashPalavra] = 1;
+
+    //Tratamento de colisoes, Enderaçamento Aberto - Sondagem Linear
+    // Em caso de colisão, este método coloca "true" na próxima posição "false" que encontrar (hashPalavra++)
+    if(TabHash[hashPalavra] == 1){
+      do{
+        hashPalavra++;
+        if(TabHash[hashPalavra] == 0){
+          TabHash[hashPalavra] = 1;
+          break;
+        }
+      } while(TabHash[hashPalavra] == 1);
+
+      colisao++;
+    }
+
+    //A TabHash é um vetor de bool, hashPalavra são as posições, quando TabHash[x] = 1, alguma palavra obeteve o código hash 'x'
+    TabHash[hashPalavra] = 1;
+    num_palavra++;//Adiciona uma palavra a contagem do numero de palavras do dicionario
 	}
-	return true;
+
+  return true;
 } /* fim-carregaDicionario */
 
 
 /* Retorna qtde palavras do dicionario, se carregado; senao carregado retorna zero */
+/*Palavras são contadas a medida que foram inseridas, para economizar desempenho*/
 unsigned int contaPalavrasDic(void) {
-	int contador = -1;
-	for(unsigned int i = 0; i < tam_hash; i++){
-		if(TabHash[i] == 1){
-			contador++;
-		}
-	}
-	return contador;
+  if(num_palavra == 0) //Dicionario sem conteudo
+    return 0;
+  printf("\n");
+  printf("COLISOES TRATADAS: %d", colisao);//Numero de colisoes encontradas e tratadas
+  return num_palavra;
 
 } /* fim-contaPalavrasDic */
 
-/* Descarrega dicionario da memoria. Retorna true se ok e false se algo deu errado */
+/* Descarrega dicionario da memoria. */
 bool descarregaDicionario(void) {
 	free(TabHash);
 	return true;
@@ -233,7 +259,8 @@ int main(int argc, char *argv[]) {
     tempo_limpeza_memoria = calcula_tempo(&tempo_inicial, &tempo_final);
 
     /* RESULTADOS ENCONTRADOS */
-    printf("\nTOTAL DE PALAVRAS ERRADAS NO TEXTO    : %d\n",   totPalErradas);
+    printf("\n");
+    printf("TOTAL DE PALAVRAS ERRADAS NO TEXTO    : %d\n",   totPalErradas);
     printf("TOTAL DE PALAVRAS DO DICIONARIO         : %d\n",   qtdePalavrasDic);
     printf("TOTAL DE PALAVRAS DO TEXTO              : %d\n",   totPalavras);
     printf("TEMPO GASTO COM CARGA DO DICIONARIO     : %.2f\n", tempo_carga);
