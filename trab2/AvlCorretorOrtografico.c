@@ -62,30 +62,30 @@ Palavra* novo_No(char* valor){
 Palavra* rotacao_Direita(Palavra* y){
     Palavra* x = y->esq;
     Palavra* T2 = x->dir;
- 
+
     // Perform rotation
     x->dir = y;
     y->esq = T2;
- 
+
     // Update heights
     y->h = maior(altura(y->esq), altura(y->dir))+1;
     x->h = maior(altura(x->esq), altura(x->dir))+1;
- 
+
     // Return new root
     return x;
 }
 Palavra* rotacao_Esquerda(Palavra* x){
     Palavra *y = x->dir;
     Palavra *T2 = y->esq;
- 
+
     // Perform rotation
     y->esq = x;
     x->dir = T2;
- 
+
     //  Update heights
     x->h = maior(altura(x->esq), altura(x->dir))+1;
     y->h = maior(altura(y->esq), altura(y->dir))+1;
- 
+
     // Return new root
     return y;
 }
@@ -99,59 +99,76 @@ Palavra* insere(Palavra* a, char *palavra){
     /* 1.  Perform the normal BST insertion */
     if (a == NULL)
         return(novo_No(palavra));
- 
+
     if (strcmp(palavra , a->valor) < 0)
         a->esq  = insere(a->esq, palavra);
     else if (strcmp(palavra , a->valor)> 0)
         a->dir = insere(a->dir, palavra);
     else // Equal keys are not allowed in BST
         return a;
- 
+
     /* 2. Update height of this ancestor a */
     a->h = 1 + maior(altura(a->esq),altura(a->dir));
- 
+
     /* 3. Get the balance factor of this ancestor
           a to check whether this a became
           unbalanced */
     int balance = getBalance(a);
- 
+
     // If this a becomes unbalanced, then
     // there are 4 cases
- 
+
     // esq esq Case
     if (balance > 1 && strcmp(palavra , a->esq->valor) < 0)
         return rotacao_Direita(a);
- 
+
     // dir dir Case
     if (balance < -1 && strcmp(palavra , a->dir->valor) > 0)
         return rotacao_Esquerda(a);
- 
+
     // esq dir Case
     if (balance > 1 && strcmp(palavra , a->esq->valor) > 0){
         a->esq =  rotacao_Esquerda(a->esq);
         return rotacao_Direita(a);
     }
- 
+
     // dir esq Case
     if (balance < -1 && strcmp(palavra , a->dir->valor) < 0){
         a->dir = rotacao_Direita(a->dir);
         return rotacao_Esquerda(a);
     }
- 
+
     /* return the (unchanged) a pointer */
     return a;
 }
 bool compara_Palavra(Palavra* a, const char* palavra){
+    char Palavra[TAM_MAX];
+    for(int i = 0; i <= strlen(palavra); i++){
+		    if(palavra[i] != '\''){
+			       Palavra[i] = tolower(palavra[i]); //coloca caracter a caracter em caixa baixa (ctype.h)
+		         }
+		     else
+			       Palavra[i] = palavra[i];
+	       }
+
     if(a == NULL)
         return false;
-    else if(strcmp(a->valor, palavra) == 0)
+    else if(strcmp(a->valor, Palavra) == 0)
         return true;
-    else if(strcmp(a->valor, palavra) < 0)
-        compara_Palavra(a->esq, palavra);
-    else if(strcmp(a->valor, palavra) > 0)
-        compara_Palavra(a->dir, palavra);
+    else if(strcmp(a->valor, Palavra) > 0)
+        compara_Palavra(a->esq, Palavra);
+    else if(strcmp(a->valor, Palavra) < 0)
+        compara_Palavra(a->dir, Palavra);
     else
         return false;
+}
+Palavra* destroi_Arv(Palavra* a){
+    if(!(a == NULL)){
+        destroi_Arv(a->esq);
+        destroi_Arv(a->dir);
+        free(a);
+    }
+    return NULL;
 }
 /* Retorna true se a palavra estah no dicionario. Do contrario, retorna false */
 bool conferePalavra(const char *palavra) {
@@ -194,8 +211,7 @@ unsigned int contaPalavrasDic(void) {
 /* Descarrega dicionario da memoria. Retorna true se ok e false se algo deu errado */
 bool descarregaDicionario(void) {
 
-    /* construa essa funcao */
-
+    L = destroi_Arv(L);
     return true;
 } /* fim-descarregaDicionario */
 
