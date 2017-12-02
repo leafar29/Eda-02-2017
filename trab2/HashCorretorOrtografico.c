@@ -3,13 +3,13 @@
 * Projeto  - Arvores e funcoes de hash
 * Verifica corretude de palavras de um arquivo-texto segundo um dicionario carregado em RAM.
  *********************************************************************************************/
-#include <ctype.h>
-#include <stdio.h>
-#include <sys/resource.h>
-#include <sys/time.h>
-#include <stdbool.h>
-#include<stdlib.h>
-#include<string.h>
+ #include <ctype.h>
+ #include <stdio.h>
+ #include <sys/resource.h>
+ #include <sys/time.h>
+ #include <stdbool.h>
+ #include <stdlib.h>
+ #include <string.h>
 
 /* Tamanho maximo de uma palavra do dicionario */
 #define TAM_MAX 45
@@ -24,131 +24,105 @@
 #define ARQTEXTO_ERROLEITURA    4
 #define ERRO_DICIO_NAOCARREGADO 5
 
-/*variaveis globais */
-int num_palavras = 0;
-unsigned int* vetor;
+
+bool *TabHash; //ponteiro para a tabela hash
+unsigned int tam_hash = 0; //variavel que guarda o tamanho da tabela
+unsigned int num_palavra = 0; //variavel que guarda o numero de palavras
+int colisao = 0;// variavel que guarda o numero de colisoes
+
+unsigned int FNVHash(const char* str, unsigned int len) {
+  const unsigned int fnv_prime = 0x811C9DC5;
+  unsigned int hash= 0;
+  unsigned int i= 0;
+  for(i = 0; i < len; str++, i++) {
+    hash *= fnv_prime;
+    hash ^= (*str);
+  }
+  return hash%1000000000;/*Divisao de resto por 1 bilhão, maior numero que conseguimos sem que o programa dê erro
+                                                                            quanto maior este num menos colisões aparecerão*/
+} /* End Of FNVHash Function */
 
 
-// A utility function to swap two elements
-void swap(int* a, int* b)
-{
-    int t = *a;
-    *a = *b;
-    *b = t;
-}
-int partition (int arr[], int low, int high)
-{
-    int pivot = arr[high];    // pivot
-    int i = (low - 1);  // Index of smaller element
- 
-    for (int j = low; j <= high- 1; j++)
-    {
-        // If current element is smaller than or
-        // equal to pivot
-        if (arr[j] <= pivot)
-        {
-            i++;    // increment index of smaller element
-            swap(&arr[i], &arr[j]);
-        }
-    }
-    swap(&arr[i + 1], &arr[high]);
-    return (i + 1);
-}
- 
-/* The main function that implements QuickSort
- arr[] --> Array to be sorted,
-  low  --> Starting index,
-  high  --> Ending index */
-void quickSort(int arr[], int low, int high)
-{
-    if (low < high)
-    {
-        /* pi is partitioning index, arr[p] is now
-           at right place */
-        int pi = partition(arr, low, high);
- 
-        // Separately sort elements before
-        // partition and after partition
-        quickSort(arr, low, pi - 1);
-        quickSort(arr, pi + 1, high);
-    }
-}
-
-unsigned int RSHash(const char* str, unsigned int len) {
-    unsigned int b = 378551;
-    unsigned int a = 63689;
-    unsigned int hash = 0;
-    unsigned int i = 0;
-    for(i = 0; i < len; str++, i++) {
-        hash = hash * a + (*str);
-        a = a * b;
-    }
-    return hash;
-} /* End of RSHash */
 
 /* Retorna true se a palavra estah no dicionario. Do contrario, retorna false */
 bool conferePalavra(const char *palavra) {
+	char Palavra[TAM_MAX];
+	unsigned int hash, i;
+	for(i = 0; i <= strlen(palavra); i++){
+		if(palavra[i] != '\''){
+			Palavra[i] = tolower(palavra[i]); //coloca caracter a caracter em caixa baixa (ctype.h)
+		}
+		else
+			Palavra[i] = palavra[i];
+	}
 
-    int search = RSHash(palavra, strlen(palavra);
-    int first = 0, last = num_palavras - 1, middle = (first+last)/2;
-  
-    while (first <= last) {
-       if (vetor[middle] < search)
-          first = middle + 1;    
-       else if (vetor[middle] == search) {
-           return false;
-       }
-       else
-          last = middle - 1;
-  
-       middle = (first + last)/2;
-    }
-    if (first > last)
-        return false;
-    return true;
+  hash = FNVHash(Palavra, strlen(Palavra)); //define o codigo hash da palavra a ser comparada
+
+  if(TabHash[hash] == 1){ // Se o codigo hash é uma posiçao do vetor ocupada com true, a palavra é válida
+		return true;
+	}
+
+  return false; // Se o codigo hash é uma posiçao do vetor que armazena false, a palavra não está no dicionario
 } /* fim-conferePalavra */
 
 /* Carrega dicionario na memoria. Retorna true se sucesso; senao retorna false. */
 bool carregaDicionario(const char *dicionario) {
+	unsigned int hashPalavra, i;
+  char palavra[TAM_MAX];
+	FILE* arq = fopen(dicionario, "r");
 
-    FILE* f = fopen(dicionario,"r");
-    int i;
-    char palavra[TAM_MAX];
+  if(arq == NULL) //Se o arquivo estiver vazio, retorna false
+		return false;
 
-    if(f == NULL)
-        return false;
-    else{
-        while(!feof(f)){
-            if(!fscanf(f,"%s",palavra))
-                return false;
-            else{
-                num_palavras++;
-                vetor = realloc(vetor, (num_palavras +1) *sizeof(int));
-                vetor[num_palavras] = RSHash(palavra,strlen(palavra));
-            }
+	while(!feof(arq)){ //Enquanto não chega ao final do arquivo
+    fscanf(arq, "%s", palavra);
+  	hashPalavra = FNVHash(palavra, strlen(palavra)); //Define um hash para cada palavra lida
+
+    /*Compara o hash da ultima palavra lida com o maior hash da lista (+100), se o novo hash é maior, ele realoca o espaço da
+    tabela, para que a posição do novo hash seja válida*/
+		if(hashPalavra > tam_hash){
+			TabHash = realloc(TabHash, (hashPalavra+1)*sizeof(bool));
+      tam_hash = hashPalavra + 100;
+		}
+
+    //Tratamento de colisoes, Enderaçamento Aberto - Sondagem Linear
+    // Em caso de colisão, este método coloca "true" na próxima posição "false" que encontrar (hashPalavra++)
+    if(TabHash[hashPalavra] == 1){
+      do{
+        hashPalavra++;
+        if(TabHash[hashPalavra] == 0){
+          TabHash[hashPalavra] = 1;
+          break;
         }
-        quickSort(vetor,0,num_palavras);
+      } while(TabHash[hashPalavra] == 1);
+
+      colisao++;
     }
 
-    return true;
+    //A TabHash é um vetor de bool, hashPalavra são as posições, quando TabHash[x] = 1, alguma palavra obeteve o código hash 'x'
+    TabHash[hashPalavra] = 1;
+    num_palavra++;//Adiciona uma palavra a contagem do numero de palavras do dicionario
+	}
+
+  return true;
 } /* fim-carregaDicionario */
 
 
 /* Retorna qtde palavras do dicionario, se carregado; senao carregado retorna zero */
+/*Palavras são contadas a medida que foram inseridas, para economizar desempenho*/
 unsigned int contaPalavrasDic(void) {
+  if(num_palavra == 0) //Dicionario sem conteudo
+    return 0;
+  printf("\n");
+  printf("COLISOES TRATADAS: %d", colisao);//Numero de colisoes encontradas e tratadas
+  return num_palavra;
 
-    /* construa essa funcao */
-
-    return num_palavras;
 } /* fim-contaPalavrasDic */
 
-
-/* Descarrega dicionario da memoria. Retorna true se ok e false se algo deu errado */
+/* Descarrega dicionario da memoria. */
 bool descarregaDicionario(void) {
-
-    /* construa essa funcao */
-
-    return true;
+	free(TabHash);
+	return true;
 } /* fim-descarregaDicionario */
 
 /* Retorna o numero de segundos entre a e b */
@@ -285,7 +259,8 @@ int main(int argc, char *argv[]) {
     tempo_limpeza_memoria = calcula_tempo(&tempo_inicial, &tempo_final);
 
     /* RESULTADOS ENCONTRADOS */
-    printf("\nTOTAL DE PALAVRAS ERRADAS NO TEXTO    : %d\n",   totPalErradas);
+    printf("\n");
+    printf("TOTAL DE PALAVRAS ERRADAS NO TEXTO    : %d\n",   totPalErradas);
     printf("TOTAL DE PALAVRAS DO DICIONARIO         : %d\n",   qtdePalavrasDic);
     printf("TOTAL DE PALAVRAS DO TEXTO              : %d\n",   totPalavras);
     printf("TEMPO GASTO COM CARGA DO DICIONARIO     : %.2f\n", tempo_carga);
